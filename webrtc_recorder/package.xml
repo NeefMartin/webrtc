@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd"
+            schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>webrtc_recorder</name>
+  <version>0.2.0</version>
+  <description>
+    WebRTC → ROS 2 topic bridge.
+    Receives video + audio media tracks and a ROS DataChannel from streamer.html
+    and publishes them as ROS 2 topics. Recording is handled externally via ros2 bag.
+    Targets ROS 2 Jazzy Jalisco on Ubuntu 24.04.
+  </description>
+  <maintainer email="todo@todo.com">Your Name</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>audio_common_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>builtin_interfaces</depend>
+  <depend>rcutils</depend>
+  <depend>cv_bridge</depend>
+  <depend>opencv</depend>
+  <depend>ament_index_cpp</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

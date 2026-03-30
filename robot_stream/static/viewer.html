@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Robot Stream — Receive</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600;800&display=swap');
+
+  :root {
+    --bg:      #060a0e;
+    --panel:   #0c1018;
+    --border:  #1a2535;
+    --accent:  #39ff14;
+    --accent2: #00e5ff;
+    --warn:    #ff9800;
+    --text:    #b8ccb8;
+    --dim:     #3a5040;
+    --glow:    0 0 20px rgba(57,255,20,.25);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Subtle scanline overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,.08) 2px,
+      rgba(0,0,0,.08) 3px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* Corner bracket decoration */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 12px; left: 12px;
+    width: 40px; height: 40px;
+    border-top: 2px solid var(--accent);
+    border-left: 2px solid var(--accent);
+    pointer-events: none;
+    z-index: 101;
+    opacity: .6;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: .6rem 1.2rem;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .logo {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .9rem;
+    color: var(--accent);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  .title span { color: var(--accent); }
+
+  .badge-row {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+  }
+
+  .badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .7rem;
+    padding: .25rem .6rem;
+    border-radius: 2px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  .badge-standby { background: rgba(58,80,64,.4); color: var(--dim); border: 1px solid var(--dim); }
+  .badge-live    { background: rgba(57,255,20,.12); color: var(--accent); border: 1px solid var(--accent); animation: pulse-border 1.5s ease-in-out infinite; }
+  .badge-waiting { background: rgba(255,152,0,.1); color: var(--warn); border: 1px solid var(--warn); }
+
+  @keyframes pulse-border {
+    0%,100% { box-shadow: 0 0 0 0 rgba(57,255,20,.4); }
+    50%      { box-shadow: 0 0 0 4px rgba(57,255,20,0); }
+  }
+
+  /* ── Main video area ── */
+  .video-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background: #000;
+    overflow: hidden;
+  }
+
+  video#remoteVideo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  .no-signal {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    background: var(--bg);
+  }
+
+  .no-signal.hidden { display: none; }
+
+  .no-signal-icon {
+    font-size: 4rem;
+    filter: grayscale(1);
+    opacity: .3;
+  }
+
+  .no-signal-text {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .85rem;
+    color: var(--dim);
+    letter-spacing: .1em;
+    text-align: center;
+  }
+
+  .no-signal-sub {
+    font-size: .7rem;
+    color: rgba(58,80,64,.7);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: .08em;
+  }
+
+  /* Animated waiting bars */
+  .bars {
+    display: flex;
+    gap: 5px;
+    align-items: flex-end;
+    height: 30px;
+    margin-top: .5rem;
+  }
+
+  .bar {
+    width: 5px;
+    background: var(--dim);
+    border-radius: 2px;
+    animation: bar-bounce 1.2s ease-in-out infinite;
+  }
+
+  .bar:nth-child(1) { height: 8px;  animation-delay: 0s; }
+  .bar:nth-child(2) { height: 16px; animation-delay: .15s; }
+  .bar:nth-child(3) { height: 24px; animation-delay: .3s; }
+  .bar:nth-child(4) { height: 16px; animation-delay: .45s; }
+  .bar:nth-child(5) { height: 8px;  animation-delay: .6s; }
+
+  @keyframes bar-bounce {
+    0%,100% { transform: scaleY(1); opacity: .4; }
+    50%      { transform: scaleY(1.8); opacity: 1; }
+  }
+
+  /* ── Overlay HUD on video ── */
+  .hud {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: .6rem 1rem;
+    background: linear-gradient(transparent, rgba(0,0,0,.7));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .7rem;
+    color: rgba(255,255,255,.5);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .3s;
+  }
+
+  .video-area:hover .hud { opacity: 1; }
+
+  /* ── Bottom bar ── */
+  .bottombar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: .5rem 1.2rem;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .72rem;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--dim);
+    flex-shrink: 0;
+    transition: background .3s, box-shadow .3s;
+  }
+
+  .status-dot.connecting { background: #ffd600; box-shadow: 0 0 6px #ffd600; }
+  .status-dot.live       { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .status-dot.error      { background: #ff3d71; }
+
+  #statusText { color: var(--dim); flex: 1; }
+
+  /* link to streamer */
+  .streamer-link {
+    margin-left: auto;
+    color: var(--accent2);
+    text-decoration: none;
+    padding: .2rem .5rem;
+    border: 1px solid rgba(0,229,255,.3);
+    border-radius: 2px;
+    font-size: .65rem;
+    letter-spacing: .08em;
+    transition: background .2s;
+  }
+
+  .streamer-link:hover { background: rgba(0,229,255,.1); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo-row">
+    <div class="logo">⬡ ROS Stream</div>
+    <div class="title">RE<span>CEIVE</span></div>
+  </div>
+  <div class="badge-row">
+    <div class="badge badge-standby" id="liveBadge">● STANDBY</div>
+  </div>
+</div>
+
+<div class="video-area">
+  <video id="remoteVideo" autoplay playsinline></video>
+
+  <div class="no-signal" id="noSignal">
+    <div class="no-signal-icon">📡</div>
+    <div class="no-signal-text">AWAITING STREAM</div>
+    <div class="no-signal-sub">Open streamer.html on PC-2 to begin</div>
+    <div class="bars">
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div><div class="bar"></div>
+    </div>
+  </div>
+
+  <div class="hud">
+    <span id="hudLeft">WebRTC · H.264</span>
+    <span id="hudRight" style="font-size:.65rem;">PC-1 VIEWER</span>
+  </div>
+</div>
+
+<div class="bottombar">
+  <div class="status-dot" id="statusDot"></div>
+  <span id="statusText">Connecting to signaling server…</span>
+  <a class="streamer-link" id="streamerLink" href="streamer.html" target="_blank">Open Streamer →</a>
+</div>
+
+<script>
+let pc = null;
+
+function setStatus(state, text) {
+  document.getElementById('statusDot').className = 'status-dot ' + state;
+  document.getElementById('statusText').textContent = text;
+}
+
+function setBadge(type, text) {
+  const b = document.getElementById('liveBadge');
+  b.className = 'badge badge-' + type;
+  b.textContent = text;
+}
+
+async function init() {
+  const wsAddr = `wss://${location.hostname}:8765`;
+  setStatus('connecting', 'Connecting to signaling server at ' + wsAddr + '…');
+
+  let ws;
+  try {
+    ws = await new Promise((resolve, reject) => {
+      const s = new WebSocket(wsAddr);
+      s.onopen = () => resolve(s);
+      s.onerror = () => reject(new Error('WS failed'));
+    });
+  } catch(e) {
+    setStatus('error', 'Cannot reach signaling server — is server.py running?');
+    return;
+  }
+
+  setStatus('connecting', 'Waiting for streamer to connect…');
+  setBadge('waiting', '◌ WAITING');
+
+  ws.send(JSON.stringify({ type: 'register', role: 'viewer' }));
+
+  ws.onclose = () => {
+    setStatus('error', 'Signaling server disconnected.');
+    setBadge('standby', '● STANDBY');
+  };
+
+  ws.onmessage = async e => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'streamer_joined') {
+      setStatus('connecting', 'Streamer connected — negotiating…');
+      setBadge('waiting', '◌ INCOMING');
+    }
+
+    if (msg.type === 'streamer_left') {
+      setStatus('connecting', 'Streamer disconnected — waiting…');
+      setBadge('waiting', '◌ WAITING');
+      document.getElementById('noSignal').classList.remove('hidden');
+      document.getElementById('noSignal').innerHTML = [
+        '<div class="no-signal-icon">\uD83D\uDCE1</div>',
+        '<div class="no-signal-text">AWAITING STREAM</div>',
+        '<div class="no-signal-sub">Open streamer.html on PC-2 to begin</div>',
+        '<div class="bars"><div class="bar"></div><div class="bar"></div>',
+        '<div class="bar"></div><div class="bar"></div><div class="bar"></div></div>'
+      ].join('');
+      document.getElementById('remoteVideo').srcObject = null;
+      const aud = document.getElementById('remoteAudio');
+      if (aud) { aud.srcObject = null; aud.remove(); }
+      pc?.close(); pc = null;
+    }
+
+    if (msg.type === 'offer') {
+      // Detect audio-only from the SDP before any tracks arrive.
+      // If the offer contains no video m-line, it's an audio-only session.
+      const sdpHasVideo = msg.sdp.sdp.includes('m=video');
+
+      pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+
+      // Single shared MediaStream that collects all incoming tracks.
+      const remoteStream = new MediaStream();
+
+      pc.onicecandidate = e2 => {
+        if (e2.candidate) ws.send(JSON.stringify({ type: 'candidate', candidate: e2.candidate }));
+      };
+
+      pc.ontrack = e2 => {
+        // Add every track to our shared stream regardless of kind.
+        remoteStream.addTrack(e2.track);
+
+        if (sdpHasVideo) {
+          // Video+audio: attach stream to <video> element once.
+          const vid = document.getElementById('remoteVideo');
+          if (!vid.srcObject) vid.srcObject = remoteStream;
+          document.getElementById('noSignal').classList.add('hidden');
+        } else {
+          // Audio-only: use a dedicated <audio> element — browsers
+          // frequently won't play audio routed through a <video> element
+          // when there is no video track in the stream.
+          let aud = document.getElementById('remoteAudio');
+          if (!aud) {
+            aud = document.createElement('audio');
+            aud.id = 'remoteAudio';
+            aud.autoplay = true;
+            document.body.appendChild(aud);
+          }
+          if (!aud.srcObject) aud.srcObject = remoteStream;
+          // Show a visual indicator on the otherwise-black screen.
+          const overlay = document.getElementById('noSignal');
+          overlay.classList.remove('hidden');
+          overlay.innerHTML = [
+            '<div class="no-signal-icon">\uD83C\uDFA4</div>',
+            '<div class="no-signal-text">AUDIO STREAM ACTIVE</div>',
+            '<div class="no-signal-sub">Receiving audio \u2014 no video track</div>',
+            '<div class="bars"><div class="bar"></div><div class="bar"></div>',
+            '<div class="bar"></div><div class="bar"></div><div class="bar"></div></div>'
+          ].join('');
+        }
+        setStatus('live', 'Stream live \u2726');
+        setBadge('live', '\u25CF LIVE');
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          setStatus('error', 'Peer connection lost.');
+          setBadge('waiting', '◌ WAITING');
+          document.getElementById('noSignal').classList.remove('hidden');
+        }
+      };
+
+      await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      ws.send(JSON.stringify({ type: 'answer', sdp: pc.localDescription }));
+    }
+
+    if (msg.type === 'candidate' && pc) {
+      try { await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)); } catch(_) {}
+    }
+  };
+
+  // Update HUD clock
+  setInterval(() => {
+    document.getElementById('hudRight').textContent =
+      new Date().toLocaleTimeString('en-GB') + ' · PC-1 VIEWER';
+  }, 1000);
+}
+
+init();
+</script>
+</body>
+</html>

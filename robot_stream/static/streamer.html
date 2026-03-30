@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Robot Stream — Transmit</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;600;800&display=swap');
+
+  :root {
+    --bg:      #0a0e14;
+    --panel:   #0f1520;
+    --border:  #1e2d44;
+    --accent:  #00e5ff;
+    --accent2: #ff3d71;
+    --green:   #39ff14;
+    --text:    #c8d8e8;
+    --dim:     #4a6070;
+    --glow:    0 0 18px rgba(0,229,255,.35);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 640px;
+    display: flex; flex-direction: column; gap: 1.5rem;
+  }
+
+  header {
+    display: flex; align-items: baseline; gap: 1rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1rem;
+  }
+
+  .logo { font-size: 1.1rem; font-family: 'Share Tech Mono', monospace; color: var(--accent); letter-spacing: .1em; text-transform: uppercase; }
+  h1 { font-size: 2rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; line-height: 1; }
+  h1 span { color: var(--accent); }
+  .subtitle { font-size: .8rem; font-family: 'Share Tech Mono', monospace; color: var(--dim); margin-top: .25rem; }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1.5rem;
+    display: flex; flex-direction: column; gap: 1rem;
+  }
+
+  .panel-label {
+    font-size: .7rem; font-family: 'Share Tech Mono', monospace;
+    color: var(--dim); letter-spacing: .15em; text-transform: uppercase; margin-bottom: .25rem;
+  }
+
+  .mode-group { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+
+  .mode-btn {
+    position: relative; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 3px; padding: 1rem;
+    background: var(--bg); color: var(--dim);
+    font-family: 'Exo 2', sans-serif; font-weight: 600; font-size: .9rem;
+    letter-spacing: .05em; text-transform: uppercase; transition: all .2s;
+    display: flex; flex-direction: column; align-items: center; gap: .5rem;
+  }
+  .mode-btn .icon { font-size: 1.6rem; }
+  .mode-btn:hover { border-color: var(--accent); color: var(--text); }
+  .mode-btn.active { border-color: var(--accent); background: rgba(0,229,255,.08); color: var(--accent); box-shadow: var(--glow); }
+  .mode-btn.active::after { content: ''; position: absolute; top: .4rem; right: .4rem; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+  .preview-wrap {
+    position: relative; background: #000;
+    border: 1px solid var(--border); border-radius: 3px;
+    overflow: hidden; aspect-ratio: 16/9;
+    display: flex; align-items: center; justify-content: center;
+  }
+  video#localVideo { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .preview-overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: .5rem; color: var(--dim); font-family: 'Share Tech Mono', monospace;
+    font-size: .8rem; pointer-events: none;
+  }
+  .preview-overlay .big-icon { font-size: 2.5rem; }
+  .audio-only-active .preview-overlay { display: flex !important; }
+  .preview-wrap::after {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,.15) 3px, rgba(0,0,0,.15) 4px);
+    pointer-events: none;
+  }
+  .rec-badge {
+    position: absolute; top: .6rem; left: .6rem;
+    background: var(--accent2); color: #fff;
+    font-family: 'Share Tech Mono', monospace; font-size: .65rem;
+    letter-spacing: .12em; padding: .2rem .5rem; border-radius: 2px;
+    display: none; align-items: center; gap: .35rem;
+  }
+  .rec-badge.show { display: flex; }
+  .rec-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: blink 1s step-start infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── Voice filter ── */
+  .filter-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
+  .filter-btn {
+    position: relative; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 3px; padding: .75rem .5rem;
+    background: var(--bg); color: var(--dim);
+    font-family: 'Share Tech Mono', monospace; font-size: .7rem;
+    letter-spacing: .06em; text-transform: uppercase; transition: all .2s;
+    display: flex; flex-direction: column; align-items: center; gap: .4rem;
+  }
+  .filter-btn .ficon { font-size: 1.4rem; }
+  .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+  .filter-btn.active { border-color: var(--accent); background: rgba(0,229,255,.08); color: var(--accent); box-shadow: var(--glow); }
+  .filter-btn.active::after { content: ''; position: absolute; top: .3rem; right: .3rem; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+
+  .monitor-row { display: flex; align-items: center; gap: .75rem; }
+  .monitor-toggle { display: flex; align-items: center; gap: .5rem; cursor: pointer; font-family: 'Share Tech Mono', monospace; font-size: .72rem; color: var(--dim); user-select: none; }
+  .monitor-toggle input { display: none; }
+  .toggle-track { width: 32px; height: 18px; background: var(--border); border-radius: 9px; position: relative; transition: background .2s; flex-shrink: 0; }
+  .toggle-thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--dim); transition: transform .2s, background .2s; }
+  .monitor-toggle input:checked ~ .toggle-track { background: rgba(0,229,255,.3); }
+  .monitor-toggle input:checked ~ .toggle-track .toggle-thumb { transform: translateX(14px); background: var(--accent); }
+  .vol-label { font-family: 'Share Tech Mono', monospace; font-size: .7rem; color: var(--dim); margin-left: auto; white-space: nowrap; }
+  input[type=range].vol-slider { width: 90px; accent-color: var(--accent); }
+  .vu-wrap { display: flex; gap: 2px; align-items: flex-end; height: 18px; }
+  .vu-bar { width: 4px; border-radius: 1px; background: var(--border); transition: height .05s, background .05s; }
+
+  .status-bar {
+    display: flex; align-items: center; gap: .6rem;
+    font-family: 'Share Tech Mono', monospace; font-size: .75rem; color: var(--dim);
+    padding: .5rem .75rem; background: rgba(0,0,0,.3);
+    border: 1px solid var(--border); border-radius: 3px;
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex-shrink: 0; transition: background .3s; }
+  .status-dot.connecting { background: #ffd600; box-shadow: 0 0 6px #ffd600; }
+  .status-dot.streaming  { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); animation: blink .8s step-start infinite; }
+  .status-dot.error      { background: var(--accent2); }
+
+  .stream-btn {
+    background: transparent; border: 2px solid var(--accent); color: var(--accent);
+    font-family: 'Exo 2', sans-serif; font-weight: 800; font-size: 1rem;
+    letter-spacing: .15em; text-transform: uppercase; padding: .9rem 2rem;
+    border-radius: 3px; cursor: pointer; width: 100%;
+    position: relative; overflow: hidden; transition: all .2s;
+  }
+  .stream-btn::before { content: ''; position: absolute; inset: 0; background: var(--accent); transform: translateX(-101%); transition: transform .25s ease; z-index: 0; }
+  .stream-btn:hover::before { transform: translateX(0); }
+  .stream-btn:hover { color: var(--bg); box-shadow: var(--glow); }
+  .stream-btn span { position: relative; z-index: 1; }
+  .stream-btn.stop { border-color: var(--accent2); color: var(--accent2); }
+  .stream-btn.stop::before { background: var(--accent2); }
+  .stream-btn:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
+
+  .input-row { display: flex; gap: .5rem; }
+  .server-input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); font-family: 'Share Tech Mono', monospace;
+    font-size: .85rem; padding: .6rem .8rem; border-radius: 3px;
+    outline: none; transition: border-color .2s;
+  }
+  .server-input:focus { border-color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div>
+      <div class="logo">⬡ ROS Stream</div>
+      <h1>TRANS<span>MIT</span></h1>
+      <div class="subtitle">PC-2 · STREAMER TERMINAL</div>
+    </div>
+  </header>
+
+  <div class="panel">
+    <div class="panel-label">01 · Server Address</div>
+    <div class="input-row">
+      <input class="server-input" id="serverAddr" type="text" placeholder="wss://192.168.x.x:8765" />
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">02 · Stream Mode</div>
+    <div class="mode-group">
+      <button class="mode-btn active" id="modeAV" onclick="setMode('av')">
+        <span class="icon">📹</span>Video &amp; Audio
+      </button>
+      <button class="mode-btn" id="modeA" onclick="setMode('a')">
+        <span class="icon">🎙️</span>Audio Only
+      </button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">03 · Preview</div>
+    <div class="preview-wrap" id="previewWrap">
+      <video id="localVideo" autoplay muted playsinline></video>
+      <div class="preview-overlay" id="previewOverlay">
+        <span class="big-icon">📷</span>
+        <span>No preview — click Stream to begin</span>
+      </div>
+      <div class="rec-badge" id="recBadge"><span class="rec-dot"></span> LIVE</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">04 · Voice Filter</div>
+    <div class="filter-grid">
+      <button class="filter-btn active" id="fNone"      onclick="setFilter('none')"><span class="ficon">🎤</span>Normal</button>
+      <button class="filter-btn"        id="fRobot"     onclick="setFilter('robot')"><span class="ficon">🤖</span>Robot</button>
+      <button class="filter-btn"        id="fRadio"     onclick="setFilter('radio')"><span class="ficon">📻</span>Radio</button>
+      <button class="filter-btn"        id="fTelephone" onclick="setFilter('telephone')"><span class="ficon">📞</span>Telephone</button>
+      <button class="filter-btn"        id="fDeep"      onclick="setFilter('deep')"><span class="ficon">🔊</span>Deep</button>
+      <button class="filter-btn"        id="fCave"      onclick="setFilter('cave')"><span class="ficon">🏔️</span>Cave</button>
+    </div>
+    <div class="monitor-row">
+      <label class="monitor-toggle" title="Monitor your processed voice">
+        <input type="checkbox" id="monitorToggle" onchange="setMonitor(this.checked)">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        Monitor
+      </label>
+      <div class="vu-wrap" id="vuMeter">
+        <div class="vu-bar" style="height:4px"></div><div class="vu-bar" style="height:4px"></div>
+        <div class="vu-bar" style="height:4px"></div><div class="vu-bar" style="height:4px"></div>
+        <div class="vu-bar" style="height:4px"></div><div class="vu-bar" style="height:4px"></div>
+        <div class="vu-bar" style="height:4px"></div><div class="vu-bar" style="height:4px"></div>
+        <div class="vu-bar" style="height:4px"></div><div class="vu-bar" style="height:4px"></div>
+        <div class="vu-bar" style="height:4px"></div><div class="vu-bar" style="height:4px"></div>
+      </div>
+      <span class="vol-label">Vol</span>
+      <input type="range" class="vol-slider" id="monitorVol" min="0" max="1" step="0.05" value="0.7" oninput="setMonitorVol(this.value)">
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Idle — configure server address above</span>
+  </div>
+
+  <button class="stream-btn" id="streamBtn" onclick="toggleStream()">
+    <span id="streamBtnLabel">▶ Stream to Robot</span>
+  </button>
+
+</div>
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let mode = 'av', currentFilter = 'none', streaming = false;
+let ws = null, localStream = null;
+let audioCtx = null, micSource = null, destination = null;
+let filterChainIn = null, monitorGain = null, analyser = null;
+let vuAnimId = null, robotOsc = null;
+
+// Per-viewer peer connections and data channels.
+// Key: viewer_id (string assigned by the server)
+// Value: { pc: RTCPeerConnection, rosChannel: RTCDataChannel | null }
+const peers = new Map();
+
+document.getElementById('serverAddr').value = `wss://${location.hostname}:8765`;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function setStatus(state, text) {
+  document.getElementById('statusDot').className = 'status-dot ' + state;
+  document.getElementById('statusText').textContent = text;
+}
+
+function setMode(m) {
+  if (streaming) return;
+  mode = m;
+  document.getElementById('modeAV').classList.toggle('active', m === 'av');
+  document.getElementById('modeA').classList.toggle('active',  m === 'a');
+}
+
+// ── Voice filter ──────────────────────────────────────────────────────────────
+function setFilter(name) {
+  currentFilter = name;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('f' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+  if (audioCtx && micSource) buildChain();
+}
+
+function buildChain() {
+  if (filterChainIn) { try { micSource.disconnect(); } catch(_){} }
+  if (monitorGain)   { try { monitorGain.disconnect(); } catch(_){} }
+  if (robotOsc)      { robotOsc.stop(); robotOsc = null; }
+
+  const ctx = audioCtx;
+  analyser = ctx.createAnalyser(); analyser.fftSize = 256;
+  monitorGain = ctx.createGain();
+  monitorGain.gain.value = document.getElementById('monitorToggle').checked
+    ? parseFloat(document.getElementById('monitorVol').value) : 0;
+
+  let chain = [];
+  switch (currentFilter) {
+    case 'robot': {
+      const ws2 = ctx.createWaveShaper(); ws2.curve = makeDistortionCurve(20); ws2.oversample = '2x';
+      const rg  = ctx.createGain(); rg.gain.value = 0;
+      robotOsc  = ctx.createOscillator(); robotOsc.type = 'sine'; robotOsc.frequency.value = 60;
+      robotOsc.connect(rg.gain); robotOsc.start();
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 200;
+      chain = [hp, ws2, rg]; break;
+    }
+    case 'radio': {
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 500;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 3500;
+      const c  = ctx.createDynamicsCompressor(); c.threshold.value = -20; c.ratio.value = 16; c.attack.value = 0.002; c.release.value = 0.1;
+      const d  = ctx.createWaveShaper(); d.curve = makeDistortionCurve(40); d.oversample = '2x';
+      const g  = ctx.createGain(); g.gain.value = 1.4;
+      chain = [hp, lp, c, d, g]; break;
+    }
+    case 'telephone': {
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 300; hp.Q.value = 0.7;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 3400; lp.Q.value = 0.7;
+      const c  = ctx.createDynamicsCompressor(); c.threshold.value = -30; c.ratio.value = 8; c.attack.value = 0.005; c.release.value = 0.2;
+      chain = [hp, lp, c]; break;
+    }
+    case 'deep': {
+      const lb = ctx.createBiquadFilter(); lb.type = 'lowshelf';  lb.frequency.value = 250; lb.gain.value = 10;
+      const hc = ctx.createBiquadFilter(); hc.type = 'highshelf'; hc.frequency.value = 2000; hc.gain.value = -10;
+      const c  = ctx.createDynamicsCompressor(); c.threshold.value = -24; c.ratio.value = 6;
+      chain = [lb, hc, c]; break;
+    }
+    case 'cave': {
+      const conv = ctx.createConvolver(); conv.buffer = makeSyntheticImpulse(ctx, 2.5, 0.5);
+      const dry = ctx.createGain(); dry.gain.value = 0.4;
+      const wet = ctx.createGain(); wet.gain.value = 0.7;
+      const mix = ctx.createGain();
+      micSource.connect(analyser); micSource.connect(dry); micSource.connect(conv);
+      conv.connect(wet); dry.connect(mix); wet.connect(mix);
+      mix.connect(destination); mix.connect(monitorGain); monitorGain.connect(ctx.destination);
+      filterChainIn = dry; startVU(); return;
+    }
+    default: chain = [];
+  }
+
+  if (chain.length === 0) {
+    micSource.connect(analyser); micSource.connect(destination); micSource.connect(monitorGain);
+  } else {
+    for (let i = 0; i < chain.length - 1; i++) chain[i].connect(chain[i+1]);
+    micSource.connect(analyser); micSource.connect(chain[0]);
+    chain[chain.length-1].connect(destination); chain[chain.length-1].connect(monitorGain);
+    filterChainIn = chain[0];
+  }
+  monitorGain.connect(ctx.destination);
+  startVU();
+}
+
+function setupAudioContext(rawStream) {
+  audioCtx    = new AudioContext();
+  destination = audioCtx.createMediaStreamDestination();
+  micSource   = audioCtx.createMediaStreamSource(rawStream);
+  buildChain();
+}
+
+function buildProcessedStream() {
+  const s = new MediaStream();
+  if (mode === 'av') localStream.getVideoTracks().forEach(t => s.addTrack(t));
+  destination.stream.getAudioTracks().forEach(t => s.addTrack(t));
+  return s;
+}
+
+function startVU() {
+  if (vuAnimId) cancelAnimationFrame(vuAnimId);
+  const bars = document.querySelectorAll('.vu-bar');
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  const n    = bars.length;
+  function draw() {
+    vuAnimId = requestAnimationFrame(draw);
+    analyser.getByteFrequencyData(data);
+    const bs = Math.floor(data.length / n);
+    for (let i = 0; i < n; i++) {
+      let s = 0; for (let j = 0; j < bs; j++) s += data[i*bs+j];
+      const avg = s / bs / 255;
+      bars[i].style.height     = Math.max(2, avg * 18) + 'px';
+      bars[i].style.background = avg > 0.7 ? '#ff3d71' : avg > 0.4 ? '#ffd600' : '#00e5ff';
+    }
+  }
+  draw();
+}
+
+function setMonitor(on) { if (monitorGain) monitorGain.gain.value = on ? parseFloat(document.getElementById('monitorVol').value) : 0; }
+function setMonitorVol(v) { if (monitorGain && document.getElementById('monitorToggle').checked) monitorGain.gain.value = parseFloat(v); }
+function makeDistortionCurve(a) { const n=256, c=new Float32Array(n); for(let i=0;i<n;i++){const x=(i*2)/n-1;c[i]=((Math.PI+a)*x)/(Math.PI+a*Math.abs(x));} return c; }
+function makeSyntheticImpulse(ctx, dur, dec) { const r=ctx.sampleRate,l=Math.floor(r*dur),b=ctx.createBuffer(2,l,r); for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);for(let i=0;i<l;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/l,dec);} return b; }
+
+// ── DataChannel helpers ───────────────────────────────────────────────────────
+// Send a ROS message on every open data channel (all connected viewers)
+function sendRosMessage(topic, messageType, msg) {
+  for (const [, peer] of peers) {
+    if (peer.rosChannel && peer.rosChannel.readyState === 'open') {
+      peer.rosChannel.send(JSON.stringify({ op: 'publish', topic, type: messageType, msg }));
+    }
+  }
+}
+
+// ── Per-viewer peer connection ────────────────────────────────────────────────
+async function createPeerForViewer(viewer_id, processedStream) {
+  if (peers.has(viewer_id)) {
+    console.warn('[WebRTC] Already have a peer for', viewer_id, '— ignoring duplicate viewer_joined');
+    return;
+  }
+
+  const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+
+  // DataChannel for ROS messages — low priority, ordered, reliable
+  const rosChannel = pc.createDataChannel('ros_control', { ordered: true, priority: 'low' });
+  rosChannel.onopen  = () => console.log('[DataChannel] ros_control open for', viewer_id);
+  rosChannel.onclose = () => console.log('[DataChannel] ros_control closed for', viewer_id);
+
+  peers.set(viewer_id, { pc, rosChannel });
+
+  // Add all tracks from the processed stream to this peer connection
+  processedStream.getTracks().forEach(t => pc.addTrack(t, processedStream));
+
+  // Forward ICE candidates tagged with viewer_id so server can route them
+  pc.onicecandidate = e => {
+    if (e.candidate && ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type:      'candidate',
+        viewer_id: viewer_id,
+        candidate: e.candidate,
+      }));
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    const s = pc.connectionState;
+    console.log(`[WebRTC] ${viewer_id} state: ${s}`);
+    if (s === 'connected') {
+      setStatus('streaming', `Streaming live ✦ (${peers.size} viewer${peers.size > 1 ? 's' : ''})`);
+    }
+    if (s === 'failed' || s === 'closed') {
+      closePeer(viewer_id);
+    }
+  };
+
+  // Create and send offer tagged with viewer_id
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  ws.send(JSON.stringify({
+    type:      'offer',
+    viewer_id: viewer_id,
+    sdp:       pc.localDescription,
+  }));
+
+  console.log('[WebRTC] Offer sent to', viewer_id);
+}
+
+function closePeer(viewer_id) {
+  const peer = peers.get(viewer_id);
+  if (!peer) return;
+  peer.rosChannel?.close();
+  peer.pc.close();
+  peers.delete(viewer_id);
+  console.log('[WebRTC] Closed peer for', viewer_id, `(${peers.size} remaining)`);
+  if (peers.size === 0 && streaming) {
+    setStatus('connecting', 'All viewers disconnected — waiting for new viewers…');
+  } else if (streaming) {
+    setStatus('streaming', `Streaming live ✦ (${peers.size} viewer${peers.size > 1 ? 's' : ''})`);
+  }
+}
+
+function closeAllPeers() {
+  for (const viewer_id of [...peers.keys()]) {
+    closePeer(viewer_id);
+  }
+}
+
+// ── Stream lifecycle ──────────────────────────────────────────────────────────
+async function toggleStream() {
+  if (!streaming) await startStream(); else stopStream();
+}
+
+async function startStream() {
+  const addr = document.getElementById('serverAddr').value.trim();
+  if (!addr) { setStatus('error', 'Enter server address first.'); return; }
+
+  setStatus('connecting', 'Requesting media permissions…');
+  document.getElementById('streamBtn').disabled = true;
+
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia(
+      mode === 'av' ? { video: true, audio: true } : { video: false, audio: true }
+    );
+  } catch(e) {
+    setStatus('error', 'Media access denied: ' + e.message);
+    document.getElementById('streamBtn').disabled = false;
+    return;
+  }
+
+  setupAudioContext(localStream);
+
+  const vid = document.getElementById('localVideo');
+  if (mode === 'av') {
+    vid.srcObject = localStream;
+    document.getElementById('previewOverlay').style.display = 'none';
+    document.getElementById('previewWrap').classList.remove('audio-only-active');
+  } else {
+    document.getElementById('previewOverlay').innerHTML = '<span class="big-icon">\uD83C\uDFA4</span><span>Audio only — no video preview</span>';
+    document.getElementById('previewWrap').classList.add('audio-only-active');
+  }
+  document.getElementById('recBadge').classList.add('show');
+
+  setStatus('connecting', 'Connecting to signaling server…');
+  try { await connectWS(addr); }
+  catch(e) { setStatus('error', 'WebSocket failed: ' + e.message); cleanup(); return; }
+
+  streaming = true;
+  document.getElementById('streamBtn').disabled = false;
+  document.getElementById('streamBtn').classList.add('stop');
+  document.getElementById('streamBtnLabel').textContent = '■ Stop Streaming';
+  setStatus('connecting', 'Connected — waiting for viewers…');
+}
+
+function connectWS(addr) {
+  return new Promise((resolve, reject) => {
+    ws = new WebSocket(addr);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'register', role: 'streamer' }));
+      resolve();
+    };
+
+    ws.onerror = () => reject(new Error('Could not connect to ' + addr));
+
+    ws.onmessage = async e => {
+      const msg = JSON.parse(e.data);
+
+      if (msg.type === 'viewer_joined') {
+        // A new viewer connected — create a dedicated peer connection for it
+        console.log('[Signaling] viewer_joined:', msg.viewer_id);
+        const processedStream = buildProcessedStream();
+        await createPeerForViewer(msg.viewer_id, processedStream);
+      }
+
+      else if (msg.type === 'viewer_left') {
+        // A viewer disconnected — clean up its peer connection
+        console.log('[Signaling] viewer_left:', msg.viewer_id);
+        closePeer(msg.viewer_id);
+      }
+
+      else if (msg.type === 'answer') {
+        // Route the answer to the correct peer connection by viewer_id
+        const peer = peers.get(msg.viewer_id);
+        if (peer) {
+          await peer.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+          console.log('[WebRTC] Remote description set for', msg.viewer_id);
+        } else {
+          console.warn('[WebRTC] Answer for unknown viewer_id:', msg.viewer_id);
+        }
+      }
+
+      else if (msg.type === 'candidate') {
+        // Route the ICE candidate to the correct peer connection by viewer_id
+        const peer = peers.get(msg.viewer_id);
+        if (peer) {
+          try { await peer.pc.addIceCandidate(new RTCIceCandidate(msg.candidate)); }
+          catch(_) {}
+        }
+      }
+    };
+
+    ws.onclose = () => {
+      if (streaming) { setStatus('error', 'WebSocket closed.'); stopStream(); }
+    };
+  });
+}
+
+function stopStream() {
+  streaming = false;
+  cleanup();
+  setStatus('', 'Stream stopped.');
+  document.getElementById('streamBtn').classList.remove('stop');
+  document.getElementById('streamBtnLabel').textContent = '▶ Stream to Robot';
+  document.getElementById('streamBtn').disabled = false;
+  document.getElementById('recBadge').classList.remove('show');
+  document.getElementById('previewOverlay').style.display = '';
+  document.getElementById('previewOverlay').innerHTML = '<span class="big-icon">\uD83D\uDCF7</span><span>No preview — click Stream to begin</span>';
+  document.getElementById('previewWrap').classList.remove('audio-only-active');
+  document.getElementById('localVideo').srcObject = null;
+}
+
+function cleanup() {
+  if (vuAnimId) { cancelAnimationFrame(vuAnimId); vuAnimId = null; }
+  if (robotOsc) { robotOsc.stop(); robotOsc = null; }
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+  micSource = filterChainIn = destination = monitorGain = analyser = null;
+  localStream?.getTracks().forEach(t => t.stop()); localStream = null;
+  closeAllPeers();
+  ws?.close(); ws = null;
+  document.querySelectorAll('.vu-bar').forEach(b => { b.style.height = '4px'; b.style.background = 'var(--border)'; });
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd"
+            schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>robot_stream</name>
+  <version>0.2.0</version>
+  <description>
+    WebRTC signaling server and static web pages for the robot stream system.
+    Serves streamer.html (PC-2 browser) and viewer.html (VM monitor) over HTTPS,
+    and relays WebRTC offer/answer/ICE signaling between peers.
+    Launched via robot_stream.launch.py alongside the webrtc_recorder node.
+  </description>
+  <maintainer email="todo@todo.com">Your Name</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Runtime: Python 3 + websockets -->
+  <exec_depend>python3</exec_depend>
+
+  <!-- Launch system -->
+  <exec_depend>ros2launch</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
