@@ -40,8 +40,6 @@ import subprocess
 import threading
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options   
 
 import websockets
 
@@ -349,16 +347,7 @@ async def main(
     http_thread = threading.Thread(
         target=run_https_thread, args=(http_port, ssl_ctx), daemon=True
     )
-    http_thread.start() 
-
-    chrome_options = Options()
-    chrome_options.add_experimental_option("useAutomationExtension", False)
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    # chrome_options.add_argument("--start-fullscreen")
-    chrome_options.add_argument("--kiosk")
-
-    driver = webdriver.Chrome(options=chrome_options)
-    driver.get('https://0.0.0.0:8080/viewer.html/')
+    http_thread.start()
 
     log.info("=" * 62)
     log.info("VM LAN IP detected : %s", local_ip)
