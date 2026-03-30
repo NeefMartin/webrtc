@@ -1,1 +1,3 @@
 audio_common/
+robot_stream/cert.pem
+robot_stream/key.pem
