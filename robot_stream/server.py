@@ -41,7 +41,9 @@ import threading
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options   
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.os_manager import ChromeType
 
 import websockets
 
@@ -357,7 +359,8 @@ async def main(
     # chrome_options.add_argument("--start-fullscreen")
     chrome_options.add_argument("--kiosk")
 
-    driver = webdriver.Chrome(options=chrome_options)
+    driver_path = ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install()
+    driver = webdriver.Chrome(driver_pathoptions=chrome_options)
     driver.get('https://0.0.0.0:8080/viewer.html/')
 
     log.info("=" * 62)
